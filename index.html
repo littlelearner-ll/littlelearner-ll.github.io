@@ -23,30 +23,6 @@
     --sans:system-ui,-apple-system,'Segoe UI',sans-serif;
     --mono:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
   }
-  @media (prefers-color-scheme: dark){
-    :root{
-      --paper:#131F1C; --card:#1C2825; --card-2:#22302C;
-      --ink:#E6EFEA; --ink-2:#B4C6BF; --muted:#7E938C;
-      --line:#2A3833; --hairline:rgba(230,239,234,.14);
-      --rule:rgba(150,180,205,.14); --tape:rgba(150,180,205,.26); --margin:rgba(233,184,178,.28);
-      --ll:#17998F; --gen:#D07333; --ref:#6E7F78;
-      --ll-text:#4FC0B7; --gen-text:#E8955C;
-      --ll-wash:rgba(23,153,143,.14); --gen-wash:rgba(208,115,51,.14);
-      --code-bg:#182420;
-      --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
-    }
-  }
-  :root[data-theme="dark"]{
-    --paper:#131F1C; --card:#1C2825; --card-2:#22302C;
-    --ink:#E6EFEA; --ink-2:#B4C6BF; --muted:#7E938C;
-    --line:#2A3833; --hairline:rgba(230,239,234,.14);
-    --rule:rgba(150,180,205,.14); --tape:rgba(150,180,205,.26); --margin:rgba(233,184,178,.28);
-    --ll:#17998F; --gen:#D07333; --ref:#6E7F78;
-    --ll-text:#4FC0B7; --gen-text:#E8955C;
-    --ll-wash:rgba(23,153,143,.14); --gen-wash:rgba(208,115,51,.14);
-    --code-bg:#182420;
-    --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
-  }
   :root[data-theme="light"]{
     --paper:#F6F8F7; --card:#FDFDFB; --card-2:#F0F3F1;
     --ink:#182B28; --ink-2:#465955; --muted:#71827D;
@@ -60,6 +36,7 @@
   }
 
   /* ============ base ============ */
+  html{color-scheme:light;}
   body{background:var(--paper);color:var(--ink);font-family:var(--serif);
        font-size:17px;line-height:1.65;margin:0;}
   .wrap{max-width:1060px;margin:0 auto;padding:0 24px;}
@@ -506,9 +483,9 @@
     <div class="lever">
       <div>
         <h3>Post-training</h3>
-        <p>SFT + GRPO lifts every model within scope, nearly closing LittleLearner’s gap with the
-        unfiltered control on K–5. Beyond K–5 the gap persists. Post-training expresses existing
-        capability; it doesn’t efficiently install what pretraining omitted.</p>
+        <p>SFT + GRPO lifts every model within scope, and by the final stage LittleLearner nearly
+        matches the unfiltered control on K–5. Beyond K–5 the gap persists at every stage. Post-training
+        expresses existing capability; it doesn’t efficiently install what pretraining omitted.</p>
       </div>
       <div class="fig">
         <p class="ft">Post-training amplifies K–5, not the beyond-K–5 gap</p>
@@ -859,7 +836,7 @@ function stageMarker(s, stage, cx, cy, cvar, tip, op){
 }
 // each row carries v1 (pass@1, pale) and v128 (pass@128, solid) on one 0–100 axis
 function stageTrack(container, cfg){
-  const bands=cfg.bands, rowH=44, bandGap=28, W=560, m={l:120,r:34,t:54};
+  const bands=cfg.bands, rowH=38, bandGap=28, W=560, m={l:120,r:34,t:34};
   const nRows=bands.reduce((a,b)=>a+b.rows.length,0);
   const H=nRows*rowH+bands.length*bandGap+28+m.t;
   const s=svgRoot(container,W,H);
@@ -869,15 +846,11 @@ function stageTrack(container, cfg){
     stageMarker(s,i,legX[i],13,"--muted",null,1);
     el("text",{x:legX[i]+11,y:17,class:"tick"},s).textContent=lab;
   });
-  stageMarker(s,2,m.l+6,34,"--muted",null,0.3);
-  el("text",{x:m.l+17,y:38,class:"tick"},s).textContent="pass@1";
-  stageMarker(s,2,m.l+104,34,"--muted",null,1);
-  el("text",{x:m.l+115,y:38,class:"tick"},s).textContent="pass@128";
   [0,25,50,75,100].forEach(v=>{
     el("line",{x1:X(v),x2:X(v),y1:m.t,y2:H-26,class:"grid"},s);
     el("text",{x:X(v),y:H-12,"text-anchor":"middle",class:"tick"},s).textContent=v;
   });
-  el("text",{x:m.l+(W-m.l-m.r)/2,y:H-1,"text-anchor":"middle"},s).textContent="accuracy (%)";
+  el("text",{x:m.l+(W-m.l-m.r)/2,y:H-1,"text-anchor":"middle"},s).textContent="pass@1 (%)";
   let y=m.t;
   bands.forEach(bd=>{
     el("text",{x:0,y:y+14,class:"dl",style:"font-size:11px;text-transform:uppercase;letter-spacing:.07em"},s)
@@ -886,13 +859,11 @@ function stageTrack(container, cfg){
     bd.rows.forEach(r=>{
       const cy=y+rowH/2-4;
       el("text",{x:m.l-12,y:cy+4,"text-anchor":"end"},s).textContent=r.name;
-      [["v128",1,-8],["v1",0.3,8]].forEach(([key,op,dy])=>{
-        const ry=cy+dy, pts=r[key].map((v,i)=>({v,i})).filter(p=>p.v!=null);
-        el("path",{d:"M"+pts.map(p=>`${X(p.v)},${ry}`).join(" L "),fill:"none",
-          style:`stroke:var(${r.cvar})`,"stroke-width":2,opacity:op*0.55},s);
-        pts.forEach(p=> stageMarker(s,p.i,X(p.v),ry,r.cvar,
-          `${r.name} · ${cfg.stages[p.i]} · ${key==="v1"?"pass@1":"pass@128"}: ${fmt(p.v)}%`, op));
-      });
+      const pts=r.v1.map((v,i)=>({v,i})).filter(p=>p.v!=null);
+      el("path",{d:"M"+pts.map(p=>`${X(p.v)},${cy}`).join(" L "),fill:"none",
+        style:`stroke:var(${r.cvar})`,"stroke-width":2,opacity:.5},s);
+      pts.forEach(p=> stageMarker(s,p.i,X(p.v),cy,r.cvar,
+        `${r.name} · ${cfg.stages[p.i]}: ${fmt(p.v)}%`, 1));
       y+=rowH;
     });
   });
