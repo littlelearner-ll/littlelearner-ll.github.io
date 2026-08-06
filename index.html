@@ -456,7 +456,7 @@
   <section id="models">
     <div class="sechead">
       <h2>Model checkpoints</h2>
-      <p class="lede">LittleLearner at three scales (0.6B / 1.3B / 5B), base and SFT, on Hugging Face.
+      <p class="lede">LittleLearner at three scales (0.6B / 1.3B / 5B), base and GRPO, on Hugging Face.
       Each ships with a matched Unfiltered control that shares its architecture, tokens, and recipe.</p>
     </div>
     <div class="zoo">
@@ -1032,12 +1032,12 @@ groupedBars("#ch-icl",{groups:DATA.icl.groups,series:DATA.icl.series,yMin:0,yMax
     tr.innerHTML=`
       <td class="scale">${z.scale}</td>
       <td>
-        <a class="mlink ll" href="${hf}general-bounded-${s}-base"><span class="hf">🤗</span> general-bounded-${s}-base</a>
-        <a class="mlink ll" href="${hf}general-bounded-${s}-sft" style="margin-left:6px;"><span class="hf">🤗</span> general-bounded-${s}-sft</a>
+        <a class="mlink ll" href="${hf}littlelearner-${s}-bounded-base"><span class="hf">🤗</span> littlelearner-${s}-bounded-base</a>
+        <a class="mlink ll" href="${hf}littlelearner-${s}-bounded-grpo" style="margin-left:6px;"><span class="hf">🤗</span> littlelearner-${s}-bounded-grpo</a>
       </td>
       <td>
-        <a class="mlink gen" href="${hf}general-unbounded-${s}-base"><span class="hf">🤗</span> general-unbounded-${s}-base</a>
-        <a class="mlink gen" href="${hf}general-unbounded-${s}-sft" style="margin-left:6px;"><span class="hf">🤗</span> general-unbounded-${s}-sft</a>
+        <a class="mlink gen" href="${hf}littlelearner-${s}-unbounded-base"><span class="hf">🤗</span> littlelearner-${s}-unbounded-base</a>
+        <a class="mlink gen" href="${hf}littlelearner-${s}-unbounded-grpo" style="margin-left:6px;"><span class="hf">🤗</span> littlelearner-${s}-unbounded-grpo</a>
       </td>`;
     body.appendChild(tr);
   });
