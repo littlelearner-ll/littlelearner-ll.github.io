@@ -1,0 +1,1058 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LittleLearner: Language Models Under Pedagogically-Controlled Knowledge Exposure</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎒</text></svg>">
+<style>
+  /* ============ tokens ============ */
+  :root{
+    --paper:#F6F8F7; --card:#FDFDFB; --card-2:#F0F3F1;
+    --ink:#182B28; --ink-2:#465955; --muted:#71827D;
+    --line:#DFE6E2; --hairline:rgba(24,43,40,.12);
+    --rule:#D6E3ED; --tape:rgba(150,180,205,.5); --margin:#E9B8B2;
+    --ll:#0B9598;        /* LittleLearner / K-5 series (validated) */
+    --gen:#D96F2E;       /* Unfiltered / Beyond-K-5 series (validated) */
+    --ref:#8A968F;       /* reference model (Gemma) — recessive */
+    --ll-text:#077072; --gen-text:#A85312;
+    --ll-wash:rgba(11,149,152,.09); --gen-wash:rgba(217,111,46,.10);
+    --code-bg:#EEF2F0;
+    --shadow:0 1px 2px rgba(24,43,40,.06), 0 8px 24px rgba(24,43,40,.05);
+    --serif:'Iowan Old Style','Palatino Linotype',Palatino,'Book Antiqua',Georgia,serif;
+    --sans:system-ui,-apple-system,'Segoe UI',sans-serif;
+    --mono:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --paper:#131F1C; --card:#1C2825; --card-2:#22302C;
+      --ink:#E6EFEA; --ink-2:#B4C6BF; --muted:#7E938C;
+      --line:#2A3833; --hairline:rgba(230,239,234,.14);
+      --rule:rgba(150,180,205,.14); --tape:rgba(150,180,205,.26); --margin:rgba(233,184,178,.28);
+      --ll:#17998F; --gen:#D07333; --ref:#6E7F78;
+      --ll-text:#4FC0B7; --gen-text:#E8955C;
+      --ll-wash:rgba(23,153,143,.14); --gen-wash:rgba(208,115,51,.14);
+      --code-bg:#182420;
+      --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#131F1C; --card:#1C2825; --card-2:#22302C;
+    --ink:#E6EFEA; --ink-2:#B4C6BF; --muted:#7E938C;
+    --line:#2A3833; --hairline:rgba(230,239,234,.14);
+    --rule:rgba(150,180,205,.14); --tape:rgba(150,180,205,.26); --margin:rgba(233,184,178,.28);
+    --ll:#17998F; --gen:#D07333; --ref:#6E7F78;
+    --ll-text:#4FC0B7; --gen-text:#E8955C;
+    --ll-wash:rgba(23,153,143,.14); --gen-wash:rgba(208,115,51,.14);
+    --code-bg:#182420;
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
+  }
+  :root[data-theme="light"]{
+    --paper:#F6F8F7; --card:#FDFDFB; --card-2:#F0F3F1;
+    --ink:#182B28; --ink-2:#465955; --muted:#71827D;
+    --line:#DFE6E2; --hairline:rgba(24,43,40,.12);
+    --rule:#D6E3ED; --tape:rgba(150,180,205,.5); --margin:#E9B8B2;
+    --ll:#0B9598; --gen:#D96F2E; --ref:#8A968F;
+    --ll-text:#077072; --gen-text:#A85312;
+    --ll-wash:rgba(11,149,152,.09); --gen-wash:rgba(217,111,46,.10);
+    --code-bg:#EEF2F0;
+    --shadow:0 1px 2px rgba(24,43,40,.06), 0 8px 24px rgba(24,43,40,.05);
+  }
+
+  /* ============ base ============ */
+  body{background:var(--paper);color:var(--ink);font-family:var(--serif);
+       font-size:17px;line-height:1.65;margin:0;}
+  .wrap{max-width:1060px;margin:0 auto;padding:0 24px;}
+  .prose{max-width:72ch;}
+  h1,h2,h3{font-family:var(--serif);line-height:1.2;text-wrap:balance;margin:0;}
+  h2{font-size:1.9rem;font-weight:600;}
+  h3{font-size:1.2rem;font-weight:600;}
+  p{margin:0 0 1em;}
+  a{color:var(--ll-text);text-decoration-color:var(--hairline);text-underline-offset:3px;}
+  a:hover{text-decoration-color:var(--ll-text);}
+  code,pre{font-family:var(--mono);font-size:.85em;}
+  :focus-visible{outline:2px solid var(--ll);outline-offset:2px;border-radius:2px;}
+  ::selection{background:var(--ll-wash);}
+  .eyebrow{font-family:var(--sans);font-size:.72rem;font-weight:600;letter-spacing:.14em;
+           text-transform:uppercase;color:var(--muted);}
+  section{padding:72px 0 8px;}
+  .sechead{display:flex;flex-direction:column;gap:10px;margin-bottom:28px;}
+  .sechead .lede{color:var(--ink-2);font-size:1.05rem;margin:0;}
+
+  /* scope + model chips */
+  .chip{display:inline-flex;align-items:center;gap:6px;font-family:var(--sans);
+        font-size:.72rem;font-weight:600;letter-spacing:.04em;border-radius:999px;
+        padding:3px 10px;white-space:nowrap;}
+  .chip::before{content:"";width:8px;height:8px;border-radius:50%;}
+  .chip.k5{background:var(--ll-wash);color:var(--ll-text);}
+  .chip.k5::before{background:var(--ll);}
+  .chip.beyond{background:var(--gen-wash);color:var(--gen-text);}
+  .chip.beyond::before{background:var(--gen);}
+
+  /* ============ nav ============ */
+  nav.top{position:sticky;top:0;z-index:50;background:color-mix(in srgb, var(--paper) 88%, transparent);
+      backdrop-filter:blur(8px);border-bottom:1px solid var(--line);}
+  nav.top .wrap{display:flex;align-items:center;gap:22px;height:52px;}
+  nav.top .brand{font-family:var(--serif);font-weight:700;font-size:1.05rem;color:var(--ink);
+      text-decoration:none;margin-right:auto;display:flex;align-items:center;gap:9px;}
+  nav.top .brand svg{flex:none;}
+  nav.top a.nl{font-family:var(--sans);font-size:.82rem;color:var(--ink-2);text-decoration:none;}
+  nav.top a.nl:hover{color:var(--ll-text);}
+  @media (max-width:760px){ nav.top a.nl{display:none;} }
+
+  /* ============ hero ============ */
+  header.hero{
+    background:
+      linear-gradient(to right, transparent 63px, var(--margin) 63px, var(--margin) 64px, transparent 64px),
+      repeating-linear-gradient(to bottom, transparent 0 31px, var(--rule) 31px 32px),
+      var(--paper);
+    border-bottom:1px solid var(--line);
+    padding:64px 0 56px;
+  }
+  .hero-grid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);gap:48px;align-items:start;}
+  @media (max-width:900px){ .hero-grid{grid-template-columns:1fr;} }
+  .hero h1{font-size:clamp(2.6rem,6vw,4rem);font-weight:700;letter-spacing:-.01em;}
+  .hero h1 .under{position:relative;white-space:nowrap;}
+  .hero h1 .under svg{position:absolute;left:0;right:0;bottom:-.18em;width:100%;height:.32em;}
+  .hero .subtitle{font-size:1.25rem;color:var(--ink-2);margin:18px 0 6px;text-wrap:balance;}
+  .hero .tagline{font-size:1.05rem;font-style:italic;color:var(--muted);margin:0 0 22px;}
+  .authors{font-family:var(--sans);font-size:.92rem;color:var(--ink-2);line-height:1.9;margin:0 0 4px;}
+  .authors a{color:inherit;text-decoration:none;}
+  .authors a:hover b{color:var(--ll-text);text-decoration:underline;text-underline-offset:3px;}
+  .authors b{color:var(--ink);font-weight:600;}
+  .affil{font-family:var(--sans);font-size:.8rem;color:var(--muted);margin:0 0 24px;}
+  .btnrow{display:flex;flex-wrap:wrap;gap:10px;}
+  .btn{display:inline-flex;align-items:center;gap:8px;font-family:var(--sans);font-size:.86rem;
+       font-weight:600;padding:9px 16px;border-radius:8px;text-decoration:none;
+       border:1px solid var(--hairline);color:var(--ink);background:var(--card);box-shadow:var(--shadow);}
+  .btn:hover{border-color:var(--ll);}
+  .btn.primary{background:var(--ll);border-color:var(--ll);color:#fff;}
+  .btn.primary:hover{filter:brightness(1.06);}
+  .btn svg{flex:none;}
+
+  /* ============ chat demo ============ */
+  .demo-card{background:var(--card);border:1px solid var(--line);border-radius:14px;
+             box-shadow:var(--shadow);overflow:hidden;}
+  .demo-head{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line);}
+  .demo-head .t{font-family:var(--sans);font-size:.82rem;font-weight:600;color:var(--ink-2);}
+  .demo-head .live{margin-left:auto;font-family:var(--sans);font-size:.7rem;color:var(--muted);}
+  .probes{display:flex;flex-wrap:wrap;gap:8px;padding:14px 16px 4px;}
+  .probe{font-family:var(--sans);font-size:.8rem;font-weight:500;color:var(--ink-2);
+         background:var(--card-2);border:1px solid var(--line);border-radius:999px;
+         padding:6px 13px;cursor:pointer;transition:border-color .15s;}
+  .probe:hover{border-color:var(--ll);color:var(--ll-text);}
+  .probe[aria-pressed="true"]{background:var(--ll-wash);border-color:var(--ll);color:var(--ll-text);font-weight:600;}
+  .q-line{display:flex;align-items:baseline;gap:10px;padding:14px 16px 2px;flex-wrap:wrap;}
+  .q-line .q{font-style:italic;color:var(--ink);}
+  .panes{display:grid;grid-template-columns:1fr 1fr;gap:0;}
+  @media (max-width:640px){ .panes{grid-template-columns:1fr;} }
+  .pane{padding:12px 16px 18px;min-height:150px;}
+  .pane + .pane{border-left:1px solid var(--line);}
+  @media (max-width:640px){ .pane + .pane{border-left:none;border-top:1px solid var(--line);} }
+  .pane .who{display:flex;align-items:center;gap:8px;font-family:var(--sans);font-size:.78rem;
+             font-weight:700;margin-bottom:8px;}
+  .pane .who .dot{width:10px;height:10px;border-radius:50%;}
+  .pane.ll .who{color:var(--ll-text);} .pane.ll .who .dot{background:var(--ll);}
+  .pane.gen .who{color:var(--gen-text);} .pane.gen .who .dot{background:var(--gen);}
+  .pane .who .size{font-weight:500;color:var(--muted);font-size:.72rem;}
+  .bubble{font-size:.95rem;line-height:1.55;color:var(--ink);background:var(--card-2);
+          border-radius:4px 12px 12px 12px;padding:10px 13px;}
+  .pane.ll .bubble{background:var(--ll-wash);}
+  .pane.gen .bubble{background:var(--gen-wash);}
+  .demo-foot{font-family:var(--sans);font-size:.72rem;color:var(--muted);
+             padding:10px 16px 14px;border-top:1px solid var(--line);}
+  .caret{display:inline-block;width:1px;background:var(--ink);height:1em;vertical-align:-.15em;
+         animation:blink 1s steps(1) infinite;}
+  @keyframes blink{50%{opacity:0;}}
+  @media (prefers-reduced-motion: reduce){ .caret{animation:none;} }
+
+  /* ============ contribution strip ============ */
+  .trio{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:8px;}
+  @media (max-width:820px){ .trio{grid-template-columns:1fr;} }
+  .cardx{background:var(--card);border:1px solid var(--line);border-radius:12px;
+         padding:22px 22px 18px;box-shadow:var(--shadow);}
+  .cardx .k{font-family:var(--sans);font-size:.72rem;font-weight:700;letter-spacing:.12em;
+            text-transform:uppercase;color:var(--ll-text);margin-bottom:10px;}
+  .cardx h3{margin-bottom:8px;}
+  .cardx p{font-size:.95rem;color:var(--ink-2);margin:0;}
+
+  /* ============ tabs + charts ============ */
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:22px;flex-wrap:wrap;}
+  .tab{font-family:var(--sans);font-size:.88rem;font-weight:600;color:var(--muted);background:none;
+       border:none;border-bottom:2px solid transparent;padding:10px 14px;cursor:pointer;margin-bottom:-1px;}
+  .tab:hover{color:var(--ink);}
+  .tab[aria-selected="true"]{color:var(--ll-text);border-bottom-color:var(--ll);}
+  .tabpanel{display:none;}
+  .tabpanel.active{display:block;}
+  .fig{background:var(--card);border:1px solid var(--line);border-radius:12px;
+       padding:22px 22px 14px;box-shadow:var(--shadow);}
+  .fig .ft{font-family:var(--sans);font-size:.95rem;font-weight:650;color:var(--ink);margin:0 0 2px;}
+  .fig .fs{font-family:var(--sans);font-size:.8rem;color:var(--muted);margin:0 0 14px;}
+  .legend{display:flex;flex-wrap:wrap;gap:16px;font-family:var(--sans);font-size:.78rem;
+          color:var(--ink-2);margin:0 0 10px;}
+  .legend .li{display:inline-flex;align-items:center;gap:7px;}
+  .legend .sw{width:14px;height:3px;border-radius:2px;}
+  .legend .sw.dotted{height:0;border-top:3px dotted;}
+  .legend .sq{width:10px;height:10px;border-radius:3px;}
+  .chart{width:100%;}
+  .chart svg{display:block;width:100%;height:auto;font-family:var(--sans);}
+  .chart .grid{stroke:var(--line);stroke-width:1;}
+  .chart .axis{stroke:var(--hairline);stroke-width:1;}
+  .chart text{fill:var(--muted);font-size:11px;}
+  .chart text.dl{fill:var(--ink-2);font-weight:600;}
+  .chart .tick{font-variant-numeric:tabular-nums;}
+  .fig .caption{font-size:.84rem;color:var(--muted);margin:12px 0 4px;line-height:1.5;}
+  details.tbl{margin-top:6px;}
+  details.tbl summary{cursor:pointer;font-family:var(--sans);font-size:.76rem;color:var(--muted);}
+  details.tbl table{border-collapse:collapse;font-family:var(--sans);font-size:.8rem;margin-top:10px;
+                    font-variant-numeric:tabular-nums;}
+  details.tbl th,details.tbl td{border:1px solid var(--line);padding:5px 10px;text-align:right;}
+  details.tbl th:first-child,details.tbl td:first-child{text-align:left;}
+  .split2{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+  @media (max-width:760px){ .split2{grid-template-columns:1fr;} }
+  #tooltip{position:fixed;z-index:99;pointer-events:none;background:var(--ink);color:var(--paper);
+           font-family:var(--sans);font-size:.75rem;font-weight:600;padding:5px 9px;border-radius:6px;
+           opacity:0;transition:opacity .1s;white-space:nowrap;}
+
+  /* ============ levers ============ */
+  .lever{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);gap:32px;align-items:start;
+         padding:8px 0 16px;}
+  @media (max-width:820px){ .lever{grid-template-columns:1fr;} }
+  .lever h3{font-size:1.35rem;margin-bottom:10px;}
+  .lever p{font-size:.97rem;color:var(--ink-2);}
+
+  /* ============ sandbox cards ============ */
+  .sand{display:grid;grid-template-columns:repeat(2,1fr);gap:22px;}
+  @media (max-width:560px){ .sand{grid-template-columns:1fr;gap:24px;} }
+
+  /* index card */
+  .sandcard{position:relative;background:var(--card);border:1px solid var(--line);
+    border-radius:4px;padding:26px 18px 22px 42px;box-shadow:var(--shadow);
+    transition:transform .18s ease, box-shadow .18s ease;}
+  /* ruled lines + red margin rule */
+  .sandcard::before{content:"";position:absolute;inset:0;border-radius:4px;pointer-events:none;
+    background:
+      linear-gradient(to right, transparent 0 30px, var(--margin) 30px 31px, transparent 31px),
+      repeating-linear-gradient(to bottom, transparent 0 25px, var(--rule) 25px 26px);
+    opacity:.55;}
+  /* tape */
+  .sandcard::after{content:"";position:absolute;top:-8px;left:50%;width:56px;height:17px;
+    transform:translateX(-50%) rotate(-1.6deg);background:var(--tape);
+    border:1px solid var(--hairline);border-radius:1px;opacity:.9;}
+  .sandcard > *{position:relative;z-index:1;}
+  .sandcard:nth-child(1){transform:rotate(-1.3deg);}
+  .sandcard:nth-child(2){transform:rotate(.75deg);}
+  .sandcard:nth-child(3){transform:rotate(-.6deg);}
+  .sandcard:nth-child(4){transform:rotate(1.1deg);}
+  .sandcard:hover{transform:rotate(0deg) translateY(-5px);z-index:3;
+    box-shadow:0 2px 5px rgba(24,43,40,.07), 0 18px 38px rgba(24,43,40,.13);}
+  @media (prefers-reduced-motion: reduce){
+    .sandcard{transition:none;transform:none;}
+    .sandcard:nth-child(1),.sandcard:nth-child(2),.sandcard:nth-child(3),.sandcard:nth-child(4){transform:none;}
+    .sandcard:hover{transform:none;}
+  }
+  /* the "bring your own" capstone card — faded, invites the reader in */
+  .sandcard.byo{background:transparent;border:1.5px dashed var(--line);box-shadow:none;}
+  .sandcard.byo::before{opacity:.28;}
+  .sandcard.byo .num{color:var(--gen-text);opacity:.5;font-weight:400;}
+  .sandcard.byo h3,.sandcard.byo p{color:var(--muted);}
+  .sandcard.byo:hover{box-shadow:0 12px 28px rgba(24,43,40,.10);border-color:var(--gen);}
+  .sandcard .num{display:block;font-family:var(--serif);font-size:1.45rem;font-weight:700;
+    line-height:1;color:var(--gen-text);opacity:.65;margin-bottom:10px;}
+  .sandcard .k{font-family:var(--sans);font-size:.66rem;font-weight:700;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--muted);margin-bottom:5px;}
+  .sandcard h3{font-size:1.05rem;line-height:26px;margin-bottom:6px;}
+  .sandcard p{font-size:.9rem;line-height:26px;color:var(--ink-2);margin:0;}
+  pre.code{background:var(--code-bg);border:1px solid var(--line);border-radius:10px;
+           padding:18px 20px;overflow-x:auto;line-height:1.6;margin:18px 0 0;position:relative;}
+  .copybtn{position:absolute;top:10px;right:10px;font-family:var(--sans);font-size:.72rem;
+           font-weight:600;color:var(--ink-2);background:var(--card);border:1px solid var(--line);
+           border-radius:6px;padding:4px 10px;cursor:pointer;}
+  .copybtn:hover{border-color:var(--ll);color:var(--ll-text);}
+
+  /* ============ model zoo ============ */
+  .zoo{overflow-x:auto;}
+  table.zoot{border-collapse:collapse;width:100%;font-family:var(--sans);font-size:.86rem;min-width:640px;}
+  table.zoot th{font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+      color:var(--muted);text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);}
+  table.zoot td{padding:12px 14px;border-bottom:1px solid var(--line);vertical-align:middle;}
+  table.zoot td.scale{font-family:var(--serif);font-weight:700;font-size:1.05rem;white-space:nowrap;}
+  .mlink{display:inline-flex;align-items:center;gap:6px;font-size:.8rem;font-weight:600;
+         text-decoration:none;border:1px solid var(--line);border-radius:8px;padding:5px 11px;
+         color:var(--ink-2);background:var(--card);white-space:nowrap;}
+  .mlink:hover{border-color:currentColor;}
+  .mlink.ll{color:var(--ll-text);} .mlink.gen{color:var(--muted);}
+  .colsub{font-family:var(--sans);font-size:.68rem;font-weight:600;letter-spacing:.06em;
+    text-transform:uppercase;color:var(--muted);}
+  .mlink .hf{font-size:.85em;}
+
+  /* ============ bibtex + footer ============ */
+  pre.bib{background:var(--code-bg);border:1px solid var(--line);border-radius:10px;
+          padding:20px 22px;overflow-x:auto;line-height:1.6;position:relative;font-size:.82rem;}
+  footer{border-top:1px solid var(--line);margin-top:80px;padding:36px 0 48px;
+         font-family:var(--sans);font-size:.82rem;color:var(--muted);}
+  footer .wrap{display:flex;flex-wrap:wrap;gap:24px;justify-content:space-between;}
+  .draftnote{background:var(--gen-wash);border:1px solid var(--gen);border-radius:0;
+      font-family:var(--sans);font-size:.78rem;color:var(--gen-text);text-align:center;
+      padding:7px 16px;}
+</style>
+</head>
+<body>
+
+
+<!-- To DISABLE the password gate: delete the div#llgate and its <script> below, or wrap them in an HTML comment. Soft gate only (client-side, not real security). Change the password on the PASSWORD line. -->
+<div id="llgate" style="position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:#131F1C;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;">
+  <form id="llgate-form" style="background:#1C2825;border:1px solid #2A3833;border-radius:16px;padding:34px 30px;max-width:340px;width:86%;box-shadow:0 20px 60px rgba(0,0,0,.45);text-align:center;">
+    <div style="font-size:2.2rem;margin-bottom:8px;">🎒</div>
+    <div style="color:#E6EFEA;font-weight:600;font-size:1.05rem;">LittleLearner</div>
+    <div style="color:#7E938C;font-size:.85rem;margin:4px 0 18px;">This preview is password protected.</div>
+    <input id="llgate-input" type="password" placeholder="Password" autofocus autocomplete="off"
+      style="width:100%;box-sizing:border-box;padding:11px 13px;border-radius:9px;border:1px solid #2A3833;background:#131F1C;color:#E6EFEA;font-size:.95rem;">
+    <div id="llgate-err" style="color:#E8955C;font-size:.78rem;height:1em;margin:9px 0 2px;"></div>
+    <button type="submit" style="width:100%;padding:11px;border:none;border-radius:9px;background:#17998F;color:#fff;font-weight:600;font-size:.95rem;cursor:pointer;margin-top:4px;">Enter</button>
+  </form>
+</div>
+<script>
+(function(){
+  var PASSWORD = "littlelearner";     /* <-- change the password here */
+  var KEY = "ll_gate_ok";
+  var gate = document.getElementById("llgate");
+  if (!gate) return;
+  try { if (sessionStorage.getItem(KEY) === "1") { gate.remove(); return; } } catch(e){}
+  document.getElementById("llgate-form").addEventListener("submit", function(e){
+    e.preventDefault();
+    if (document.getElementById("llgate-input").value === PASSWORD){
+      try { sessionStorage.setItem(KEY, "1"); } catch(e){}
+      gate.remove();
+    } else {
+      document.getElementById("llgate-err").textContent = "Wrong password";
+      document.getElementById("llgate-input").select();
+    }
+  });
+})();
+</script>
+
+<div class="draftnote">Internal draft — findings charts are approximated from the arXiv Section 4 figures (7–9); replace with exact numbers before release. arXiv ID and Hugging Face links are still stubs.</div>
+
+<nav class="top" aria-label="Site">
+  <div class="wrap">
+    <a class="brand" href="#top">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <rect x="4" y="3" width="16" height="18" rx="2" stroke="var(--ll)" stroke-width="2"/>
+        <path d="M8 8h8M8 12h8M8 16h5" stroke="var(--ll)" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      LittleLearner
+    </a>
+    <a class="nl" href="#demo">Demo</a>
+    <a class="nl" href="#chat">Chat</a>
+    <a class="nl" href="#levers">Findings</a>
+    <a class="nl" href="#sandbox">Sandbox</a>
+    <a class="nl" href="#models">Models</a>
+    <a class="nl" href="#cite">Cite</a>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <div class="wrap hero-grid">
+    <div>
+      <h1 style="margin-top:4px;">Little<span class="under">Learner<svg viewBox="0 0 200 14" preserveAspectRatio="none" aria-hidden="true"><path d="M3 9 C 40 3, 70 12, 105 7 S 170 4, 197 8" fill="none" stroke="var(--ll)" stroke-width="4" stroke-linecap="round" opacity=".65"/></svg></span></h1>
+      <p class="subtitle">Language Models Under Pedagogically-Controlled Knowledge Exposure</p>
+      <p class="tagline">A language model that only knows what a 5th grader knows.</p>
+      <p class="authors">
+        <a href="https://www.linkedin.com/in/fanfei-li/" target="_blank" rel="noopener"><b>Fanfei Li</b></a><sup>1,2</sup><sup>*†</sup> ·
+        <a href="https://jana-z.github.io" target="_blank" rel="noopener"><b>Jana Zeller</b></a><sup>1,2,3</sup><sup>*</sup> ·
+        <a href="https://manueldeprada.com/" target="_blank" rel="noopener"><b>Manuel Prada-Corral</b></a><sup>1,2,3</sup> ·
+        <a href="https://thwiedemer.com" target="_blank" rel="noopener"><b>Thaddäus Wiedemer</b></a><sup>1,2</sup> ·
+        <a href="https://www.prasannamayil.com" target="_blank" rel="noopener"><b>Prasanna Mayilvahanan</b></a><sup>1,2</sup> ·
+        <a href="https://rycolab.io/authors/ryan/" target="_blank" rel="noopener"><b>Ryan Cotterell</b></a><sup>3</sup> ·
+        <a href="https://brendel-group.github.io" target="_blank" rel="noopener"><b>Wieland Brendel</b></a><sup>1,2</sup>
+      </p>
+      <p class="affil">
+        <sup>1</sup>MPI for Intelligent Systems &nbsp;·&nbsp; <sup>2</sup>ELLIS Institute Tübingen &nbsp;·&nbsp; <sup>3</sup>ETH Zürich<br>
+        <sup>*</sup>Equal contribution &nbsp;·&nbsp; <sup>†</sup>Correspondence to <a href="mailto:fanfei.li@tuebingen.mpg.de">fanfei.li@tuebingen.mpg.de</a>
+      </p>
+      <div class="btnrow">
+        <a class="btn primary" href="#chat">🤖&nbsp;Chat live</a>
+        <a class="btn" href="#cite">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 2h9l5 5v15H6z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M15 2v5h5" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+          Paper</a>
+        <a class="btn" href="https://huggingface.co/littlelearner">🤗&nbsp;Models</a>
+        <a class="btn" href="https://huggingface.co/littlelearner">📚&nbsp;LittleCurriculum</a>
+        <a class="btn" href="#cite">BibTeX</a>
+      </div>
+    </div>
+
+    <!-- ======== hero demo ======== -->
+    <div class="demo-card" id="demo">
+      <div class="demo-head">
+        <span class="t">Ask LittleLearner</span>
+        <span class="live">sample responses · <a href="#chat" style="color:inherit">try the live chat ↓</a></span>
+      </div>
+      <div class="probes" id="probes" role="group" aria-label="Example questions"></div>
+      <div class="panes">
+        <div class="pane ll">
+          <div class="who"><span class="dot"></span>LittleLearner <span class="size">K–5 curriculum</span></div>
+          <div class="bubble" id="ans-ll"></div>
+        </div>
+        <div class="pane gen">
+          <div class="who"><span class="dot"></span>Unfiltered <span class="size">unfiltered control</span></div>
+          <div class="bubble" id="ans-gen"></div>
+        </div>
+      </div>
+      <div class="demo-foot">Same architecture, tokens, and recipe. Only the pretraining corpus differs.</div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- ======== live chat ======== -->
+  <section id="chat">
+    <div class="sechead">
+      <h2>Talk to LittleLearner</h2>
+      <p class="lede">The hosted 5B model, live in your browser.
+      <a href="https://zueri-monstro.rufous-hamlet.ts.net/ll-demo-chat/?theme=light" target="_blank" rel="noopener noreferrer">Open in a new tab ↗</a>
+      if the chat doesn’t load below.</p>
+    </div>
+    <iframe src="https://zueri-monstro.rufous-hamlet.ts.net/ll-demo-chat/?theme=light"
+      title="LittleLearner live demo" loading="lazy" referrerpolicy="no-referrer"
+      style="width:100%;height:min(80vh,760px);border:1px solid var(--line);border-radius:12px;background:var(--card);box-shadow:var(--shadow);"></iframe>
+  </section>
+
+
+  <!-- ======== TLDR ======== -->
+  <section id="tldr">
+    <div class="sechead">
+      <h2>A controlled sandbox for studying how models acquire knowledge</h2>
+      <p class="lede">Modern LMs are trained on everything at once, so it is hard to tell whether a new skill
+      was <i>learned</i> or merely <i>elicited</i>. We constrain the training distribution itself: an 88B-token
+      corpus filtered to the U.S. elementary-school curriculum, with models trained from scratch on it and
+      matched unfiltered controls.</p>
+    </div>
+    <div class="trio">
+      <div class="cardx">
+        <div class="k">Dataset</div>
+        <h3>LittleCurriculum</h3>
+        <p>An 88B-token corpus distilled from FineWeb-Edu through a five-stage filtering pipeline aligned with Common Core standards (K–5).
+        Concepts, facts, and vocabulary taught above Grade&nbsp;5 are explicitly excluded.</p>
+      </div>
+      <div class="cardx">
+        <div class="k">Models</div>
+        <h3>LittleLearner</h3>
+        <p>Three scales (0.6B / 1.3B / 5B) trained from scratch on LittleCurriculum: chattable models
+        with an interpretable knowledge boundary. Each ships with a matched <i>Unfiltered</i> control
+        for clean comparison.</p>
+      </div>
+      <div class="cardx">
+        <div class="k">Findings</div>
+        <h3>Elicitation, not acquisition</h3>
+        <p>In our experiments, scaling, SFT+GRPO post-training, and in-context learning amplify what the
+        curriculum taught, but none meaningfully improves out-of-scope performance, indicating that the
+        pretraining filter sets the effective capability ceiling.</p>
+      </div>
+  </section>
+
+  <!-- ======== model zoo ======== -->
+  <section id="models">
+    <div class="sechead">
+      <h2>Model checkpoints</h2>
+      <p class="lede">LittleLearner at three scales (0.6B / 1.3B / 5B), base and SFT, on Hugging Face.
+      Each ships with a matched Unfiltered control that shares its architecture, tokens, and recipe.</p>
+    </div>
+    <div class="zoo">
+      <table class="zoot">
+        <thead>
+          <tr>
+            <th scope="col">Scale</th>
+            <th scope="col"><span class="chip k5" style="font-size:.68rem">LittleLearner · K–5</span></th>
+            <th scope="col"><span class="colsub">Matched control · unfiltered</span></th>
+          </tr>
+        </thead>
+        <tbody id="zoobody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ======== levers ======== -->
+  <section id="levers">
+    <div class="sechead">
+      <h2>Capability stays inside the curriculum</h2>
+      <p class="lede">Can standard interventions push a model past what its pretraining data taught it?
+      With the boundary under experimental control, we can ask cleanly. In our experiments, each
+      intervention amplifies in-scope ability; none of them meaningfully improves out-of-scope
+      performance.</p>
+    </div>
+
+    <div class="tabs" role="tablist" aria-label="Findings">
+      <button class="tab" role="tab" aria-selected="true" data-panel="f-scale">Scaling</button>
+      <button class="tab" role="tab" aria-selected="false" data-panel="f-post">Post-training</button>
+      <button class="tab" role="tab" aria-selected="false" data-panel="f-icl">In-context learning</button>
+    </div>
+
+    <div class="tabpanel active" id="f-scale" role="tabpanel">
+    <div class="lever">
+      <div>
+        <h3>Scaling</h3>
+        <p>Growing the model sharpens reasoning inside the exposure range. But scaling only lifts what
+        the curriculum already covers: the gains fade at the boundary and are gone past it.</p>
+      </div>
+      <div class="fig">
+        <p class="ft">MathCAMPS accuracy by grade, across model size</p>
+        <div class="legend" id="lg-scale"></div>
+        <div class="chart" id="ch-scale"></div>
+      </div>
+    </div>
+
+    </div>
+
+    <div class="tabpanel" id="f-post" role="tabpanel">
+    <div class="lever">
+      <div>
+        <h3>Post-training</h3>
+        <p>SFT + GRPO lifts every model within scope, nearly closing LittleLearner’s gap with the
+        unfiltered control on K–5. Beyond K–5 the gap persists. Post-training expresses existing
+        capability; it doesn’t efficiently install what pretraining omitted.</p>
+      </div>
+      <div class="fig">
+        <p class="ft">Post-training amplifies K–5, not the beyond-K–5 gap</p>
+        <div class="legend" id="lg-post"></div>
+        <div class="chart" id="ch-post"></div>
+      </div>
+    </div>
+
+    </div>
+
+    <div class="tabpanel" id="f-icl" role="tabpanel">
+    <div class="lever">
+      <div>
+        <h3>In-context learning</h3>
+        <p>In-context chain-of-thought examples steer the output but don’t improve reasoning: few-shot
+        gives modest gains in K–5 and none beyond it, and written explanations add little on top. ICL
+        surfaces existing behavior; it doesn’t recover missing capability.</p>
+      </div>
+      <div class="fig">
+        <p class="ft">Accuracy by prompting condition</p>
+        <div class="legend" id="lg-icl"></div>
+        <div class="chart" id="ch-icl"></div>
+      </div>
+    </div>
+    </div>
+  </section>
+
+  <!-- ======== sandbox ======== -->
+  <section id="sandbox">
+    <div class="sechead">
+      <h2>What will you teach it?</h2>
+      <p class="lede">Because LittleLearner’s training exposure is explicitly specified, behavioral and
+      representational changes can be related directly to the concepts you introduce. Three directions
+      we’re excited about:</p>
+    </div>
+    <div class="sand">
+      <div class="sandcard">
+        <span class="num">01</span>
+        <div class="k">RL &amp; discovery</div>
+        <h3>Can RL create capability?</h3>
+        <p>The prior is restricted to K–5, so capabilities that emerge under RL can be attributed to
+        the RL process itself. A tractable proxy for reward-driven discovery.</p>
+      </div>
+      <div class="sandcard">
+        <span class="num">02</span>
+        <div class="k">Continual learning</div>
+        <h3>Watch a concept being learned</h3>
+        <p>Introduce negative numbers and measure sample efficiency, retention, and interference. Or
+        probe behavior near the boundary: does it answer, abstain, or hallucinate?</p>
+      </div>
+      <div class="sandcard">
+        <span class="num">03</span>
+        <div class="k">Educational science</div>
+        <h3>Machine vs. child learners</h3>
+        <p>Specified exposure enables controlled human-model comparison. Do models and children need
+        similar exposure to learn fractions, or make similar errors on word problems?</p>
+      </div>
+      <div class="sandcard byo">
+        <span class="num">＋</span>
+        <div class="k">Your turn</div>
+        <h3>Bring your own question</h3>
+        <p>A known boundary turns your idea into a clean experiment!</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======== cite ======== -->
+  <section id="cite">
+    <div class="sechead">
+      <h2>If you find this work useful</h2>
+      <p class="lede">Please cite our paper:</p>
+    </div>
+    <pre class="bib"><button class="copybtn" data-copy="#bibtex">Copy</button><code id="bibtex">@article{littlelearner2026,
+  title   = {LittleLearner: Language Models Under Pedagogically-Controlled Knowledge Exposure},
+  author  = {Fanfei Li and Jana Zeller and Manuel Prada-Corral and Thadd{\"a}us Wiedemer
+             and Prasanna Mayilvahanan and Ryan Cotterell and Wieland Brendel},
+  journal = {arXiv preprint arXiv:26xx.xxxxx},
+  year    = {2026}
+}</code></pre>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>LittleLearner · 2026</span>
+  </div>
+</footer>
+
+<div id="tooltip" role="presentation"></div>
+
+<script>
+/* =====================================================================
+   DATA — every number on the page lives here. Placeholder values are
+   marked; swap in final hf_models results before release.
+   ===================================================================== */
+const DATA = {
+  probes: [
+    { q: "What is gravity?", scope: "k5",
+      ll: "Gravity is the invisible force that pulls everything on the earth towards each other. It's like an invisible magnet that's keeping everything on the ground together.",
+      gen: "Gravity is a fundamental force that attracts objects with mass, described by Newtonian physics and general relativity." },
+    { q: "What is Schrödinger's cat?", scope: "beyond",
+      ll: "It's a cat that has been misbehavin'!",
+      gen: "A Schrödinger's cat is not a literal cat that is alive and dead at the same time. However, there is a thought experiment that explains it…" },
+    { q: "Explain quantum entanglement.", scope: "beyond",
+      ll: "Quantum entanglement is when a person gets caught in two or more ropes that are connected in a special way. This can happen if the ropes cross each other or if one rope wraps around the other.",
+      gen: "Quantum entanglement is a strange phenomenon where the state of one particle becomes instantly known to every other particle that can be accessed. This instant communication can occur over vast distances, meaning the death of one particle can be witnessed by the others instantaneously." },
+    { q: "How does rain form?", scope: "k5",
+      ll: "Rain forms when tiny water droplets gather in clouds. More and more of these droplets group together until the clouds can't hold them anymore. Then, the droplets fall down as rain.",
+      gen: "Rain forms when the warm, moist air near the Earth's surface rises. This rising air spreads out and cools, which causes it to change into liquid water." },
+    { q: "I'm thinking of a number. If I double it and add 3, I get 11. What is my number?", scope: "k5",
+      ll: "To find the mystery number, we work backwards. We undo the adding 3 part by subtracting 3 from 11. So, 11 - 3 = 8. Next, we undo the doubling part (multiplying by 2) by dividing 8 by 2. So, 8 ÷ 2 = 4. Therefore, the mystery number is 4.",
+      gen: "Let the unknown number be x. The problem states that if the number is doubled and added to 3, the result is 11. Next, we can translate this into an equation: 2x + 3 = 11. Then, subtract 3 from both sides of the equation: 2x = 11 - 3, which simplifies to 2x = 8. Now, divide both sides by 2 to solve for x: x = 8 / 2. Therefore, x = 4." }
+  ],
+  // BPB on CLEAR (not rendered — probe lives in the paper; re-enable if the tab returns)
+  clear: {
+    bins: ["0.5","0.0","-0.3","-0.5","-0.8","-1.0","-1.3","-1.8","-2.4"],
+    series: [
+      { name:"LittleLearner", cvar:"--ll",  vals:[0.81,0.84,0.88,0.93,0.99,1.04,1.07,1.11,1.15] },
+      { name:"Unfiltered",       cvar:"--gen", vals:[0.75,0.76,0.78,0.80,0.82,0.84,0.85,0.86,0.87] },
+      { name:"Gemma-2 2B",    cvar:"--ref", vals:[0.74,0.75,0.77,0.79,0.81,0.82,0.84,0.85,0.86], dash:true }
+    ],
+    yLabel:"BPB (↓ more familiar)", xLabel:"BT easiness (easy → hard)"
+  },
+  // CoMTA BPB by subject (not rendered — probe lives in the paper; re-enable if the tab returns)
+  comta: {
+    groups:["Elementary","Algebra","Trigonometry","Calculus"],
+    series:[
+      { name:"LittleLearner", cvar:"--ll",  vals:[1.95,2.28,2.33,2.15] },
+      { name:"Unfiltered",       cvar:"--gen", vals:[1.80,1.95,1.90,1.75] },
+      { name:"Gemma-2 2B",    cvar:"--ref", vals:[1.93,1.62,1.53,1.47] }
+    ],
+    yLabel:"BPB (↓ more familiar)", yMin:1.2
+  },
+  // Jeopardy science pass@1 (not rendered — validation section removed; kept for re-enable)
+  jeopardy: {
+    groups:["K–5 scope","Beyond-K–5"],
+    series:[
+      { name:"LittleLearner", cvar:"--ll",  vals:[13.8, 0.7] },
+      { name:"Unfiltered",       cvar:"--gen", vals:[27.5, 24.3] }
+    ],
+    yLabel:"pass@1 (%)"
+  },
+  // MathCAMPS pass@k (not rendered — validation section removed; kept for re-enable)
+  passk: {
+    ks:[1,8,16,32,64],
+    k5:[
+      { name:"LittleLearner", cvar:"--ll",  vals:[11.6,33.0,41.5,51.0,60.4] },
+      { name:"Unfiltered",       cvar:"--gen", vals:[17.1,42.0,52.0,62.5,72.1] },
+      { name:"Gemma-2 2B",    cvar:"--ref", vals:[32.0,52.5,57.2,61.1,64.6], dash:true }
+    ],
+    beyond:[
+      { name:"LittleLearner", cvar:"--ll",  vals:[2.5,8.0,12.0,17.5,24.7] },
+      { name:"Unfiltered",       cvar:"--gen", vals:[7.2,18.0,25.0,33.5,43.4] },
+      { name:"Gemma-2 2B",    cvar:"--ref", vals:[19.9,33.0,38.0,43.0,48.0], dash:true }
+    ],
+    yLabel:"pass@k (%)"
+  },
+  // Scaling — LittleLearner base, per-grade pass@1, across 3 model sizes (real numbers)
+  scaling: {
+    x:["0.6B","1.3B","5B"],
+    series:[
+      { name:"Grade K", cvar:"--ll",  vals:[51,58,68] },
+      { name:"Grade 6", cvar:"--gen", vals:[5,8,19] },
+      { name:"Grade 8", cvar:"--gen", vals:[0,0,1], dash:true }
+    ],
+    yLabel:"pass@1 (%)"
+  },
+  // Post-training across stages (§4.2). LittleLearner uses Little post-data, Unfiltered
+  // uses Unfiltered post-data. Shapes: base ○ · +SFT ▢ · +SFT+GRPO ◇. Rounded to integers.
+  post: {
+    stages:["base","+SFT","+SFT+GRPO"],
+    bands:[
+      { band:"In scope · K–5", rows:[
+        { name:"LittleLearner", cvar:"--ll",  v1:[1,45,55],  v128:[30,49,75] },
+        { name:"Unfiltered",    cvar:"--gen", v1:[9,44,59],  v128:[49,83,83] }
+      ]},
+      { band:"Beyond K–5", rows:[
+        { name:"LittleLearner", cvar:"--ll",  v1:[0,11,16],  v128:[9,41,36] },
+        { name:"Unfiltered",    cvar:"--gen", v1:[4,17,29],  v128:[25,57,56] }
+      ]}
+    ]
+  },
+  // ICL by prompting condition — LittleLearner, MathCAMPS
+  icl: {
+    groups:["Direct","Few-shot","Explanation","Few-shot + Expl."],
+    series:[
+      { name:"K–5",        cvar:"--ll",  vals:[34,37,34,37] },
+      { name:"Beyond-K–5", cvar:"--gen", vals:[6,6,6,6] }
+    ],
+    yLabel:"pass@1 (%)"
+  },
+  zoo: [
+    { scale:"0.6B" },
+    { scale:"1.3B" },
+    { scale:"5B" }
+  ]
+};
+
+/* ============ helpers ============ */
+const $ = (s, r=document) => r.querySelector(s);
+const NS = "http://www.w3.org/2000/svg";
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+function el(tag, attrs={}, parent){ const e=document.createElementNS(NS,tag);
+  for(const [k,v] of Object.entries(attrs)) e.setAttribute(k,v);
+  if(parent) parent.appendChild(e); return e; }
+function svgRoot(container, w, h){ const c=$(container); c.innerHTML="";
+  const s=el("svg",{viewBox:`0 0 ${w} ${h}`,role:"img"}); c.appendChild(s); return s; }
+const fmt = v => (Math.round(v*10)/10).toString();
+
+/* tooltip */
+const tip = $("#tooltip");
+function bindTips(scope){
+  scope.querySelectorAll("[data-tip]").forEach(m=>{
+    m.addEventListener("mousemove", e=>{
+      tip.textContent = m.getAttribute("data-tip");
+      tip.style.left = (e.clientX+12)+"px"; tip.style.top = (e.clientY-30)+"px";
+      tip.style.opacity = 1;
+    });
+    m.addEventListener("mouseleave", ()=> tip.style.opacity = 0);
+  });
+}
+
+/* legends */
+function legend(sel, series){
+  const g=$(sel); if(!g) return; g.innerHTML="";
+  series.forEach(s=>{
+    const item=document.createElement("span"); item.className="li";
+    const sw=document.createElement("span");
+    sw.className = "sw"+(s.dash?" dotted":"");
+    sw.style[s.dash?"borderTopColor":"background"]=`var(${s.cvar})`;
+    item.append(sw, document.createTextNode(s.name)); g.appendChild(item);
+  });
+}
+
+/* table view */
+function tableView(sel, head, rows){
+  const c=$(sel); if(!c) return;
+  const t=document.createElement("table");
+  t.innerHTML = "<thead><tr>"+head.map(h=>`<th>${h}</th>`).join("")+"</tr></thead>"+
+    "<tbody>"+rows.map(r=>"<tr>"+r.map(v=>`<td>${v}</td>`).join("")+"</tr>").join("")+"</tbody>";
+  c.appendChild(t);
+}
+
+/* ============ line chart ============ */
+function lineChart(container, cfg){
+  const W=560,H=320,m={t:16,r:76,b:44,l:46};
+  const s=svgRoot(container,W,H);
+  const iw=W-m.l-m.r, ih=H-m.t-m.b;
+  const ymin=cfg.yMin!==undefined?cfg.yMin:0;
+  const ymax=cfg.yMax!==undefined?cfg.yMax:Math.max(...cfg.series.flatMap(x=>x.vals))*1.08;
+  const X=i=>m.l+iw*i/(cfg.x.length-1);
+  const Y=v=>m.t+ih*(1-(v-ymin)/(ymax-ymin));
+  const ticks=cfg.yTicks||4;
+  for(let i=0;i<=ticks;i++){ const v=ymin+(ymax-ymin)*i/ticks, y=Y(v);
+    el("line",{x1:m.l,x2:W-m.r,y1:y,y2:y,class:"grid"},s);
+    el("text",{x:m.l-8,y:y+4,"text-anchor":"end",class:"tick"},s).textContent=fmt(v);
+  }
+  el("line",{x1:m.l,x2:W-m.r,y1:m.t+ih,y2:m.t+ih,class:"axis"},s);
+  cfg.x.forEach((lab,i)=>{ el("text",{x:X(i),y:H-m.b+18,"text-anchor":"middle",class:"tick"},s).textContent=lab; });
+  el("text",{x:m.l+iw/2,y:H-6,"text-anchor":"middle"},s).textContent=cfg.xLabel||"";
+  const yl=el("text",{x:12,y:m.t+ih/2,"text-anchor":"middle",transform:`rotate(-90 12 ${m.t+ih/2})`},s);
+  yl.textContent=cfg.yLabel||"";
+  cfg.series.forEach(sr=>{
+    const pts=sr.vals.map((v,i)=>[X(i),Y(v)]);
+    el("path",{d:"M"+pts.map(p=>p.join(",")).join(" L "),fill:"none",
+      style:`stroke:var(${sr.cvar})`,"stroke-width":2,"stroke-linecap":"round","stroke-linejoin":"round",
+      ...(sr.dash?{"stroke-dasharray":"2 5"}:{})},s);
+    pts.forEach((p,i)=>{
+      el("circle",{cx:p[0],cy:p[1],r:4.5,style:`fill:var(${sr.cvar});stroke:var(--card)`,"stroke-width":2,
+        "data-tip":`${sr.name} · ${cfg.x[i]}: ${fmt(sr.vals[i])}`},s);
+    });
+    const last=pts[pts.length-1];
+    el("text",{x:last[0]+10,y:last[1]+4,class:"dl"},s).textContent=sr.name;
+  });
+  bindTips(s);
+}
+
+/* ============ grouped bars ============ */
+function groupedBars(container, cfg){
+  const W=560,H=300,m={t:16,r:16,b:46,l:46};
+  const s=svgRoot(container,W,H);
+  const iw=W-m.l-m.r, ih=H-m.t-m.b;
+  const ymin=cfg.yMin!==undefined?cfg.yMin:0;
+  const ymax=cfg.yMax!==undefined?cfg.yMax:Math.max(...cfg.series.flatMap(x=>x.vals))*1.15;
+  const Y=v=>m.t+ih*(1-(v-ymin)/(ymax-ymin));
+  const ticks=4;
+  for(let i=0;i<=ticks;i++){ const v=ymin+(ymax-ymin)*i/ticks, y=Y(v);
+    el("line",{x1:m.l,x2:W-m.r,y1:y,y2:y,class:"grid"},s);
+    el("text",{x:m.l-8,y:y+4,"text-anchor":"end",class:"tick"},s).textContent=fmt(v);
+  }
+  el("line",{x1:m.l,x2:W-m.r,y1:Y(ymin),y2:Y(ymin),class:"axis"},s);
+  const nG=cfg.groups.length, nS=cfg.series.length;
+  const slot=iw/nG, bw=Math.min(24,(slot*0.62)/nS), gap=2;
+  cfg.groups.forEach((g,gi)=>{
+    const cx=m.l+slot*gi+slot/2;
+    const total=nS*bw+(nS-1)*gap, x0=cx-total/2;
+    cfg.series.forEach((sr,si)=>{
+      const v=sr.vals[gi], x=x0+si*(bw+gap), y=Y(v), h=Y(ymin)-y;
+      el("path",{d:`M${x},${y+4} a4,4 0 0 1 4,-4 h${bw-8} a4,4 0 0 1 4,4 v${h-4} h${-bw} Z`,
+        style:`fill:var(${sr.cvar})`,"data-tip":`${sr.name} · ${g}: ${fmt(v)}`},s);
+      if(cfg.capLabels) el("text",{x:x+bw/2,y:y-6,"text-anchor":"middle",class:"dl"},s).textContent=fmt(v);
+    });
+    el("text",{x:cx,y:H-m.b+20,"text-anchor":"middle",class:"tick"},s).textContent=g;
+  });
+  const yl=el("text",{x:12,y:m.t+ih/2,"text-anchor":"middle",transform:`rotate(-90 12 ${m.t+ih/2})`},s);
+  yl.textContent=cfg.yLabel||"";
+  bindTips(s);
+}
+
+/* ============ slope chart (scaling) ============ */
+function slopeChart(container, cfg){
+  const W=560,H=340,m={t:20,r:96,b:36,l:96};
+  const s=svgRoot(container,W,H);
+  const ih=H-m.t-m.b;
+  const ymax=Math.max(...cfg.grades.flatMap(g=>g.vals))*1.06;
+  const Y=v=>m.t+ih*(1-v/ymax);
+  const x0=m.l, x1=W-m.r;
+  el("line",{x1:x0,x2:x0,y1:m.t,y2:m.t+ih,class:"axis"},s);
+  el("line",{x1:x1,x2:x1,y1:m.t,y2:m.t+ih,class:"axis"},s);
+  el("text",{x:x0,y:H-8,"text-anchor":"middle",class:"tick"},s).textContent=cfg.sizes[0];
+  el("text",{x:x1,y:H-8,"text-anchor":"middle",class:"tick"},s).textContent=cfg.sizes[1];
+  cfg.grades.forEach(g=>{
+    const cvar = g.scope==="k5" ? "--ll" : "--gen";
+    const yA=Y(g.vals[0]), yB=Y(g.vals[1]);
+    el("line",{x1:x0,x2:x1,y1:yA,y2:yB,style:`stroke:var(${cvar})`,"stroke-width":2,
+      "stroke-linecap":"round",opacity:.9},s);
+    [[x0,yA,g.vals[0]],[x1,yB,g.vals[1]]].forEach(([x,y,v])=>{
+      el("circle",{cx:x,cy:y,r:4.5,style:`fill:var(${cvar});stroke:var(--card)`,"stroke-width":2,
+        "data-tip":`${g.name}: ${fmt(v)}%`},s);
+    });
+    el("text",{x:x0-12,y:yA+4,"text-anchor":"end",class:"dl"},s).textContent=`${g.name} ${fmt(g.vals[0])}`;
+    el("text",{x:x1+12,y:yB+4,class:"dl"},s).textContent=fmt(g.vals[1]);
+  });
+  bindTips(s);
+}
+
+/* ============ staged dumbbell / track (post-training) ============ */
+// one marker per stage: 0=base (hollow circle), 1=+SFT (square), 2=+SFT+GRPO (diamond)
+function stageMarker(s, stage, cx, cy, cvar, tip, op){
+  op=(op==null)?1:op;
+  const st=`stroke:var(${cvar})`, fillC=`fill:var(${cvar})`, hollow="fill:var(--card)", x=`;opacity:${op}`;
+  let e;
+  if(stage===1) e=el("rect",{x:cx-4.4,y:cy-4.4,width:8.8,height:8.8,rx:1,style:`${fillC};${st}${x}`,"stroke-width":2},s);
+  else if(stage===2) e=el("path",{d:`M${cx},${cy-6} L${cx+6},${cy} L${cx},${cy+6} L${cx-6},${cy} Z`,style:`${fillC};${st}${x}`,"stroke-width":2},s);
+  else e=el("circle",{cx,cy,r:4.8,style:`${hollow};${st}${x}`,"stroke-width":2},s);
+  if(tip) e.setAttribute("data-tip",tip);
+  return e;
+}
+// each row carries v1 (pass@1, pale) and v128 (pass@128, solid) on one 0–100 axis
+function stageTrack(container, cfg){
+  const bands=cfg.bands, rowH=44, bandGap=28, W=560, m={l:120,r:34,t:54};
+  const nRows=bands.reduce((a,b)=>a+b.rows.length,0);
+  const H=nRows*rowH+bands.length*bandGap+28+m.t;
+  const s=svgRoot(container,W,H);
+  const X=v=>m.l+(W-m.l-m.r)*v/100;
+  const legX=[m.l, m.l+66, m.l+156];
+  cfg.stages.forEach((lab,i)=>{
+    stageMarker(s,i,legX[i],13,"--muted",null,1);
+    el("text",{x:legX[i]+11,y:17,class:"tick"},s).textContent=lab;
+  });
+  stageMarker(s,2,m.l+6,34,"--muted",null,0.3);
+  el("text",{x:m.l+17,y:38,class:"tick"},s).textContent="pass@1";
+  stageMarker(s,2,m.l+104,34,"--muted",null,1);
+  el("text",{x:m.l+115,y:38,class:"tick"},s).textContent="pass@128";
+  [0,25,50,75,100].forEach(v=>{
+    el("line",{x1:X(v),x2:X(v),y1:m.t,y2:H-26,class:"grid"},s);
+    el("text",{x:X(v),y:H-12,"text-anchor":"middle",class:"tick"},s).textContent=v;
+  });
+  el("text",{x:m.l+(W-m.l-m.r)/2,y:H-1,"text-anchor":"middle"},s).textContent="accuracy (%)";
+  let y=m.t;
+  bands.forEach(bd=>{
+    el("text",{x:0,y:y+14,class:"dl",style:"font-size:11px;text-transform:uppercase;letter-spacing:.07em"},s)
+      .textContent=bd.band;
+    y+=bandGap;
+    bd.rows.forEach(r=>{
+      const cy=y+rowH/2-4;
+      el("text",{x:m.l-12,y:cy+4,"text-anchor":"end"},s).textContent=r.name;
+      [["v128",1,-8],["v1",0.3,8]].forEach(([key,op,dy])=>{
+        const ry=cy+dy, pts=r[key].map((v,i)=>({v,i})).filter(p=>p.v!=null);
+        el("path",{d:"M"+pts.map(p=>`${X(p.v)},${ry}`).join(" L "),fill:"none",
+          style:`stroke:var(${r.cvar})`,"stroke-width":2,opacity:op*0.55},s);
+        pts.forEach(p=> stageMarker(s,p.i,X(p.v),ry,r.cvar,
+          `${r.name} · ${cfg.stages[p.i]} · ${key==="v1"?"pass@1":"pass@128"}: ${fmt(p.v)}%`, op));
+      });
+      y+=rowH;
+    });
+  });
+  bindTips(s);
+}
+
+/* ============ dumbbell (post-training) ============ */
+function dumbbell(container, cfg){
+  const rows=cfg.rows, W=560, rh=42, bandGap=26;
+  const bands=[...new Set(rows.map(r=>r.band))];
+  const H=rows.length*rh+bands.length*bandGap+40;
+  const m={l:236,r:56,t:8};
+  const s=svgRoot(container,W,H);
+  const xmax=Math.max(...rows.map(r=>r.to))*1.15;
+  const X=v=>m.l+(W-m.l-m.r)*v/xmax;
+  [0,25,50].filter(v=>v<xmax).forEach(v=>{
+    el("line",{x1:X(v),x2:X(v),y1:m.t,y2:H-28,class:"grid"},s);
+    el("text",{x:X(v),y:H-12,"text-anchor":"middle",class:"tick"},s).textContent=v;
+  });
+  let y=m.t;
+  bands.forEach(b=>{
+    el("text",{x:0,y:y+16,class:"dl",style:"font-size:11px;text-transform:uppercase;letter-spacing:.08em"},s)
+      .textContent=b==="K–5"?"In scope · K–5":"Out of scope · 6–8";
+    y+=bandGap;
+    rows.filter(r=>r.band===b).forEach(r=>{
+      const cy=y+rh/2-6;
+      el("text",{x:0,y:cy+4},s).textContent=r.label;
+      el("line",{x1:X(r.from),x2:X(r.to),y1:cy,y2:cy,style:`stroke:var(${r.cvar})`,"stroke-width":2},s);
+      el("circle",{cx:X(r.from),cy,r:4,style:`fill:var(--card);stroke:var(${r.cvar})`,"stroke-width":2,
+        "data-tip":`${r.label} · base: ${fmt(r.from)}%`},s);
+      el("circle",{cx:X(r.to),cy,r:5,style:`fill:var(${r.cvar});stroke:var(--card)`,"stroke-width":2,
+        "data-tip":`${r.label} · post-trained: ${fmt(r.to)}%`},s);
+      el("text",{x:X(r.to)+10,y:cy+4,class:"dl"},s).textContent=fmt(r.to);
+      y+=rh;
+    });
+  });
+  el("text",{x:m.l+(W-m.l-m.r)/2,y:H-12,"text-anchor":"middle",class:"tick"},s).textContent="";
+  bindTips(s);
+}
+
+/* ============ delta bars (ICL) ============ */
+function deltaBars(container, cfg){
+  const rows=cfg.rows, W=560, rh=46, H=rows.length*rh+36;
+  const m={l:250,r:66};
+  const s=svgRoot(container,W,H);
+  const xmax=Math.max(...rows.map(r=>Math.abs(r.delta)))*1.15;
+  const X=v=>m.l+(W-m.l-m.r)*v/xmax;
+  [0,10,20].filter(v=>v<xmax).forEach(v=>{
+    el("line",{x1:X(v),x2:X(v),y1:4,y2:H-26,class:v===0?"axis":"grid"},s);
+    el("text",{x:X(v),y:H-10,"text-anchor":"middle",class:"tick"},s).textContent=v;
+  });
+  rows.forEach((r,i)=>{
+    const y=10+i*rh, bw=14;
+    const w=Math.max(X(Math.abs(r.delta))-X(0),2);
+    el("text",{x:m.l-12,y:y+bw/2+4,"text-anchor":"end"},s).textContent=r.label;
+    el("path",{d:`M${X(0)},${y} h${Math.max(w-4,0)} a4,4 0 0 1 4,4 v${bw-8} a4,4 0 0 1 -4,4 h${-Math.max(w-4,0)} Z`,
+      style:`fill:var(${Math.abs(r.delta)>=5?"--ll":"--ref"})`,
+      "data-tip":`${r.label.replace(/&/g,"&")}: ${r.note.replace(/&lt;/g,"<")}`},s);
+    const nt=el("text",{x:X(Math.abs(r.delta))+10,y:y+bw/2+4,class:"dl"},s);
+    nt.innerHTML=r.note;
+  });
+  bindTips(s);
+}
+
+/* =====================================================================
+   build the page
+   ===================================================================== */
+
+/* --- hero demo --- */
+(function(){
+  const probesBox=$("#probes");
+  let timers=[];
+  function clearTyping(){ timers.forEach(clearTimeout); timers=[]; }
+  function typeInto(elm, text){
+    if(reduceMotion){ elm.textContent=text; return; }
+    elm.textContent="";
+    const caret=document.createElement("span"); caret.className="caret"; elm.appendChild(caret);
+    let i=0;
+    (function step(){
+      if(i<text.length){
+        caret.before(document.createTextNode(text.slice(i, i+3)));
+        i+=3; timers.push(setTimeout(step, 14));
+      } else caret.remove();
+    })();
+  }
+  function select(idx){
+    const p=DATA.probes[idx];
+    probesBox.querySelectorAll(".probe").forEach((b,i)=>b.setAttribute("aria-pressed", i===idx));
+    clearTyping();
+    typeInto($("#ans-ll"), p.ll);
+    typeInto($("#ans-gen"), p.gen);
+  }
+  DATA.probes.forEach((p,i)=>{
+    const b=document.createElement("button");
+    b.className="probe"; b.textContent=p.q; b.setAttribute("aria-pressed","false");
+    b.addEventListener("click",()=>select(i));
+    probesBox.appendChild(b);
+  });
+  select(1); // open on Schrödinger's cat — the thesis in one exchange
+})();
+
+/* --- tabs --- */
+document.querySelectorAll(".tabs").forEach(tabs=>{
+  tabs.querySelectorAll(".tab").forEach(t=>{
+    t.addEventListener("click",()=>{
+      tabs.querySelectorAll(".tab").forEach(x=>x.setAttribute("aria-selected","false"));
+      t.setAttribute("aria-selected","true");
+      const panelRoot=tabs.parentElement;
+      panelRoot.querySelectorAll(":scope > .tabpanel").forEach(p=>p.classList.remove("active"));
+      $("#"+t.dataset.panel).classList.add("active");
+    });
+  });
+});
+
+/* --- charts --- */
+legend("#lg-scale", DATA.scaling.series);
+lineChart("#ch-scale",{x:DATA.scaling.x,series:DATA.scaling.series,yMin:0,yMax:74,
+  yLabel:DATA.scaling.yLabel,xLabel:"model size"});
+
+legend("#lg-post",[{name:"LittleLearner",cvar:"--ll"},{name:"Unfiltered control",cvar:"--gen"}]);
+stageTrack("#ch-post", DATA.post);
+
+legend("#lg-icl", DATA.icl.series);
+groupedBars("#ch-icl",{groups:DATA.icl.groups,series:DATA.icl.series,yMin:0,yMax:45,
+  yLabel:DATA.icl.yLabel,capLabels:false});
+
+/* --- model zoo --- */
+(function(){
+  const body=$("#zoobody");
+  const hf="https://huggingface.co/littlelearner/";
+  DATA.zoo.forEach(z=>{
+    const s=z.scale.toLowerCase();
+    const tr=document.createElement("tr");
+    tr.innerHTML=`
+      <td class="scale">${z.scale}</td>
+      <td>
+        <a class="mlink ll" href="${hf}general-bounded-${s}-base"><span class="hf">🤗</span> general-bounded-${s}-base</a>
+        <a class="mlink ll" href="${hf}general-bounded-${s}-sft" style="margin-left:6px;"><span class="hf">🤗</span> general-bounded-${s}-sft</a>
+      </td>
+      <td>
+        <a class="mlink gen" href="${hf}general-unbounded-${s}-base"><span class="hf">🤗</span> general-unbounded-${s}-base</a>
+        <a class="mlink gen" href="${hf}general-unbounded-${s}-sft" style="margin-left:6px;"><span class="hf">🤗</span> general-unbounded-${s}-sft</a>
+      </td>`;
+    body.appendChild(tr);
+  });
+})();
+
+/* --- copy buttons --- */
+document.querySelectorAll(".copybtn").forEach(b=>{
+  b.addEventListener("click",()=>{
+    const t=$(b.dataset.copy).innerText;
+    navigator.clipboard.writeText(t).then(()=>{
+      b.textContent="Copied"; setTimeout(()=>b.textContent="Copy",1500);
+    });
+  });
+});
+</script>
+
+</body>
+</html>
