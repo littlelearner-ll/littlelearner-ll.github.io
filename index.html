@@ -258,6 +258,12 @@
          text-decoration:none;border:1px solid var(--line);border-radius:8px;padding:5px 11px;
          color:var(--ink-2);background:var(--card);white-space:nowrap;}
   .mlink:hover{border-color:currentColor;}
+  .mstack{display:flex;flex-direction:column;align-items:flex-start;gap:6px;}
+  /* faint band grouping the bounded family (LittleLearner + chatty) */
+  table.zoot th:nth-child(2),table.zoot td:nth-child(2),
+  table.zoot th:nth-child(3),table.zoot td:nth-child(3){background:rgba(11,149,152,.05);}
+  table.zoot th:nth-child(2),table.zoot td:nth-child(2){box-shadow:inset 1px 0 0 var(--ll-wash);}
+  table.zoot th:nth-child(3),table.zoot td:nth-child(3){box-shadow:inset -1px 0 0 var(--ll-wash);}
   .mlink.ll{color:var(--ll-text);} .mlink.gen{color:var(--muted);}
   .colsub{font-family:var(--sans);font-size:.68rem;font-weight:600;letter-spacing:.06em;
     text-transform:uppercase;color:var(--muted);}
@@ -430,8 +436,13 @@
   <section id="models">
     <div class="sechead">
       <h2>Model checkpoints</h2>
-      <p class="lede">LittleLearner at three scales (0.6B / 1.3B / 5B), base and GRPO, on Hugging Face.
-      Each ships with a matched Unfiltered control that shares its architecture, tokens, and recipe.</p>
+      <p class="lede">LittleLearner at three scales (0.6B / 1.3B / 5B), each with a matched Unfiltered control
+      sharing its architecture, tokens, and recipe.</p>
+      <p class="lede" style="margin-top:.5rem">
+        <strong>Base</strong>: the pretrained model.<br>
+        <strong>GRPO</strong>: math specialists post-trained on MathCAMPS; responses may exhibit a tendency toward math-oriented output.<br>
+        <strong>Chatty</strong>: variants tuned for general chat behavior.
+      </p>
     </div>
     <div class="zoo">
       <table class="zoot">
@@ -439,6 +450,7 @@
           <tr>
             <th scope="col">Scale</th>
             <th scope="col"><span class="chip k5" style="font-size:.68rem">LittleLearner · K–5</span></th>
+            <th scope="col"><span class="colsub" style="color:var(--ll-text)">chatty</span></th>
             <th scope="col"><span class="colsub">Matched control · unfiltered</span></th>
           </tr>
         </thead>
@@ -1000,12 +1012,21 @@ groupedBars("#ch-icl",{groups:DATA.icl.groups,series:DATA.icl.series,yMin:0,yMax
     tr.innerHTML=`
       <td class="scale">${z.scale}</td>
       <td>
-        <a class="mlink ll" href="${hf}littlelearner-${s}-bounded-base"><span class="hf">🤗</span> littlelearner-${s}-base</a>
-        <a class="mlink ll" href="${hf}littlelearner-${s}-bounded-grpo" style="margin-left:6px;"><span class="hf">🤗</span> littlelearner-${s}-grpo</a>
+        <div class="mstack">
+          <a class="mlink ll" href="${hf}littlelearner-${s}-bounded-base"><span class="hf">🤗</span> littlelearner-${s}-base</a>
+          <a class="mlink ll" href="${hf}littlelearner-${s}-bounded-grpo"><span class="hf">🤗</span> littlelearner-${s}-grpo</a>
+        </div>
       </td>
       <td>
-        <a class="mlink gen" href="${hf}littlelearner-${s}-unbounded-base"><span class="hf">🤗</span> unfiltered-${s}-base</a>
-        <a class="mlink gen" href="${hf}littlelearner-${s}-unbounded-grpo" style="margin-left:6px;"><span class="hf">🤗</span> unfiltered-${s}-grpo</a>
+        <div class="mstack">
+          <a class="mlink ll" href="${hf}littlelearner-${s}-chatty"><span class="hf">🤗</span> littlelearner-${s}-chatty</a>
+        </div>
+      </td>
+      <td>
+        <div class="mstack">
+          <a class="mlink gen" href="${hf}littlelearner-${s}-unbounded-base"><span class="hf">🤗</span> unfiltered-${s}-base</a>
+          <a class="mlink gen" href="${hf}littlelearner-${s}-unbounded-grpo"><span class="hf">🤗</span> unfiltered-${s}-grpo</a>
+        </div>
       </td>`;
     body.appendChild(tr);
   });
