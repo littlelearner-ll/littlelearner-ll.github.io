@@ -283,39 +283,6 @@
 <body>
 
 
-<!-- To DISABLE the password gate: delete the div#llgate and its <script> below, or wrap them in an HTML comment. Soft gate only (client-side, not real security). Change the password on the PASSWORD line. -->
-<div id="llgate" style="position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:#131F1C;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;">
-  <form id="llgate-form" style="background:#1C2825;border:1px solid #2A3833;border-radius:16px;padding:34px 30px;max-width:340px;width:86%;box-shadow:0 20px 60px rgba(0,0,0,.45);text-align:center;">
-    <div style="font-size:2.2rem;margin-bottom:8px;">🎒</div>
-    <div style="color:#E6EFEA;font-weight:600;font-size:1.05rem;">LittleLearner</div>
-    <div style="color:#7E938C;font-size:.85rem;margin:4px 0 18px;">This preview is password protected.</div>
-    <input id="llgate-input" type="password" placeholder="Password" autofocus autocomplete="off"
-      style="width:100%;box-sizing:border-box;padding:11px 13px;border-radius:9px;border:1px solid #2A3833;background:#131F1C;color:#E6EFEA;font-size:.95rem;">
-    <div id="llgate-err" style="color:#E8955C;font-size:.78rem;height:1em;margin:9px 0 2px;"></div>
-    <button type="submit" style="width:100%;padding:11px;border:none;border-radius:9px;background:#17998F;color:#fff;font-weight:600;font-size:.95rem;cursor:pointer;margin-top:4px;">Enter</button>
-  </form>
-</div>
-<script>
-(function(){
-  var PASSWORD = "littlelearner";     /* <-- change the password here */
-  var KEY = "ll_gate_ok";
-  var gate = document.getElementById("llgate");
-  if (!gate) return;
-  try { if (sessionStorage.getItem(KEY) === "1") { gate.remove(); return; } } catch(e){}
-  document.getElementById("llgate-form").addEventListener("submit", function(e){
-    e.preventDefault();
-    if (document.getElementById("llgate-input").value === PASSWORD){
-      try { sessionStorage.setItem(KEY, "1"); } catch(e){}
-      gate.remove();
-    } else {
-      document.getElementById("llgate-err").textContent = "Wrong password";
-      document.getElementById("llgate-input").select();
-    }
-  });
-})();
-</script>
-
-
 <nav class="top" aria-label="Site">
   <div class="wrap">
     <a class="brand" href="#top">
@@ -479,8 +446,9 @@
     <div class="lever">
       <div>
         <h3>Scaling</h3>
-        <p>Growing the model sharpens reasoning inside the exposure range. But scaling only lifts what
-        the curriculum already covers: the gains fade at the boundary and are gone past it.</p>
+        <p>Scaling model size improves performance within the model’s controlled knowledge exposure and
+        extends modestly to problems along the same learning trajectory, but yields little improvement on
+        problems requiring more advanced capabilities outside the exposure.</p>
       </div>
       <div class="fig">
         <p class="ft">MathCAMPS accuracy by grade, across model size</p>
@@ -495,9 +463,8 @@
     <div class="lever">
       <div>
         <h3>Post-training</h3>
-        <p>SFT + GRPO lifts every model within scope, and by the final stage LittleLearner nearly
-        matches the unfiltered control on K–5. Beyond K–5 the gap persists at every stage. Post-training
-        expresses existing capability; it doesn’t efficiently install what pretraining omitted.</p>
+        <p>Post-training through GRPO significantly boosts in-scope K–5 capabilities, but fails to
+        recover out-of-scope beyond-K–5 capabilities, even when training with out-of-scope data.</p>
       </div>
       <div class="fig">
         <p class="ft">Post-training amplifies K–5, not the beyond-K–5 gap</p>
@@ -512,9 +479,8 @@
     <div class="lever">
       <div>
         <h3>In-context learning</h3>
-        <p>In-context chain-of-thought examples steer the output but don’t improve reasoning: few-shot
-        gives modest gains in K–5 and none beyond it, and written explanations add little on top. ICL
-        surfaces existing behavior; it doesn’t recover missing capability.</p>
+        <p>In-context learning with the prompts we test does not unlock new reasoning capabilities in
+        beyond-K–5 for our trained 5B LittleLearner.</p>
       </div>
       <div class="fig">
         <p class="ft">Accuracy by prompting condition</p>
@@ -665,18 +631,23 @@ const DATA = {
     ],
     yLabel:"pass@1 (%)"
   },
-  // Post-training across stages (§4.2). LittleLearner uses Little post-data, Unfiltered
-  // uses Unfiltered post-data. Shapes: base ○ · +SFT ▢ · +SFT+GRPO ◇. Rounded to integers.
+  // Post-training (§4.2): base -> post-trained, pass@1, rounded to integers. The LittleLearner
+  // base is post-trained two ways (little vs unfiltered post-data); the control uses unfiltered.
+  // Dot color = regime: teal = LittleLearner/little-data, orange = unfiltered-data. So a base dot
+  // is colored by base model, a post-trained dot by its post-training data — the crossover row
+  // runs teal -> orange. Connector is neutral grey. base = hollow dot, post-trained = filled dot.
   post: {
-    stages:["base","+SFT","+SFT+GRPO"],
+    stages:["base","post-trained"],
     bands:[
       { band:"In scope · K–5", rows:[
-        { name:"LittleLearner", cvar:"--ll",  v1:[1,45,55],  v128:[30,49,75] },
-        { name:"Unfiltered",    cvar:"--gen", v1:[9,44,59],  v128:[49,83,83] }
+        { name:"LittleLearner · little post",     v1:[45,54], cFrom:"--ll",  cTo:"--ll"  },
+        { name:"LittleLearner · unfiltered post", v1:[45,55], cFrom:"--ll",  cTo:"--gen" },
+        { name:"Unfiltered · unfiltered post",    v1:[44,59], cFrom:"--gen", cTo:"--gen" }
       ]},
       { band:"Beyond K–5", rows:[
-        { name:"LittleLearner", cvar:"--ll",  v1:[0,11,16],  v128:[9,41,36] },
-        { name:"Unfiltered",    cvar:"--gen", v1:[4,17,29],  v128:[25,57,56] }
+        { name:"LittleLearner · little post",     v1:[10,16], cFrom:"--ll",  cTo:"--ll"  },
+        { name:"LittleLearner · unfiltered post", v1:[10,18], cFrom:"--ll",  cTo:"--gen" },
+        { name:"Unfiltered · unfiltered post",    v1:[17,30], cFrom:"--gen", cTo:"--gen" }
       ]}
     ]
   },
@@ -848,15 +819,19 @@ function stageMarker(s, stage, cx, cy, cvar, tip, op){
 }
 // each row carries v1 (pass@1, pale) and v128 (pass@128, solid) on one 0–100 axis
 function stageTrack(container, cfg){
-  const bands=cfg.bands, rowH=38, bandGap=28, W=560, m={l:120,r:34,t:34};
+  const bands=cfg.bands, rowH=38, bandGap=30, W=620, m={l:206,r:40,t:38};
   const nRows=bands.reduce((a,b)=>a+b.rows.length,0);
   const H=nRows*rowH+bands.length*bandGap+28+m.t;
   const s=svgRoot(container,W,H);
   const X=v=>m.l+(W-m.l-m.r)*v/100;
-  const legX=[m.l, m.l+66, m.l+156];
-  cfg.stages.forEach((lab,i)=>{
-    stageMarker(s,i,legX[i],13,"--muted",null,1);
-    el("text",{x:legX[i]+11,y:17,class:"tick"},s).textContent=lab;
+  // marker legend: hollow = base, filled = post-trained
+  let lx=m.l;
+  [["base",false],["post-trained",true]].forEach(([lab,filled])=>{
+    el("circle",{cx:lx+5,cy:15,r:4.8,
+      style:filled?"fill:var(--muted);stroke:var(--card)":"fill:var(--card);stroke:var(--muted)",
+      "stroke-width":2},s);
+    el("text",{x:lx+16,y:19,class:"tick"},s).textContent=lab;
+    lx+=16+lab.length*6.2+24;
   });
   [0,25,50,75,100].forEach(v=>{
     el("line",{x1:X(v),x2:X(v),y1:m.t,y2:H-26,class:"grid"},s);
@@ -870,12 +845,17 @@ function stageTrack(container, cfg){
     y+=bandGap;
     bd.rows.forEach(r=>{
       const cy=y+rowH/2-4;
-      el("text",{x:m.l-12,y:cy+4,"text-anchor":"end"},s).textContent=r.name;
+      el("text",{x:m.l-12,y:cy+4,"text-anchor":"end",style:"font-size:11px"},s).textContent=r.name;
       const pts=r.v1.map((v,i)=>({v,i})).filter(p=>p.v!=null);
       el("path",{d:"M"+pts.map(p=>`${X(p.v)},${cy}`).join(" L "),fill:"none",
-        style:`stroke:var(${r.cvar})`,"stroke-width":2,opacity:.5},s);
-      pts.forEach(p=> stageMarker(s,p.i,X(p.v),cy,r.cvar,
-        `${r.name} · ${cfg.stages[p.i]}: ${fmt(p.v)}%`, 1));
+        style:"stroke:var(--muted)","stroke-width":2,opacity:.45},s);
+      pts.forEach((p,idx)=>{
+        const last=idx===pts.length-1;
+        const c=last?r.cTo:r.cFrom;
+        el("circle",{cx:X(p.v),cy,r:last?5:4.5,
+          style:last?`fill:var(${c});stroke:var(--card)`:`fill:var(--card);stroke:var(${c})`,
+          "stroke-width":2,"data-tip":`${r.name} · ${cfg.stages[p.i]}: ${fmt(p.v)}%`},s);
+      });
       y+=rowH;
     });
   });
@@ -995,7 +975,7 @@ legend("#lg-scale", DATA.scaling.series);
 lineChart("#ch-scale",{x:DATA.scaling.x,series:DATA.scaling.series,yMin:0,yMax:74,
   yLabel:DATA.scaling.yLabel,xLabel:"model size"});
 
-legend("#lg-post",[{name:"LittleLearner",cvar:"--ll"},{name:"Unfiltered control",cvar:"--gen"}]);
+legend("#lg-post",[{name:"LittleLearner / little data",cvar:"--ll"},{name:"unfiltered data",cvar:"--gen"}]);
 stageTrack("#ch-post", DATA.post);
 
 legend("#lg-icl", DATA.icl.series);
